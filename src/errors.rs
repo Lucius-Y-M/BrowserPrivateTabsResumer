@@ -1,5 +1,10 @@
 #[derive(Debug, Clone, Copy)]
 pub enum Errors {
+
+    // TOML file IO
+    ParseTOMLFilError,
+    TOMLFileIsEmpty,
+
     RequestGetError,
     URLParseError,
     ParseTextError,
@@ -13,4 +18,9 @@ pub enum Errors {
     ParseTitleError,
 
     LookupFailedError,
+
+
+    WriteToStdoutError,
+
+    CursorPosOverflowError,
 }

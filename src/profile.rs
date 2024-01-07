@@ -2,8 +2,8 @@ use chrono::*;
 use itertools::Itertools;
 use once_cell::sync::Lazy;
 use std::{
-    collections::{HashMap, HashSet},
-    rc::Rc,
+    collections::{HashMap, HashSet, VecDeque},
+    rc::Rc, io::stdout, default,
 };
 
 use crate::Errors;
@@ -17,7 +17,32 @@ type URL<'a> = &'a str;
 type Title<'a> = &'a str;
 
 #[derive(Debug, PartialEq, Eq, Hash)]
-pub struct URLTitlePair<'a>(URL<'a>, Title<'a>);
+pub struct URLTitlePair<'a> {
+    pub url: URL<'a>,
+    pub title: Title<'a>,
+    
+    pub is_highlighted: bool,
+    pub t_created: NaiveDateTime,
+}
+
+impl<'a> URLTitlePair<'a> {
+    pub fn new(url: URL<'a>, title: Title<'a>) -> Self {
+        Self {
+            url,
+            title,
+            is_highlighted: false,
+            t_created: Utc::now().naive_utc()
+        }
+    }
+}
+
+impl<'a> Default for URLTitlePair<'a> {
+    fn default() -> Self {
+        Self::new("https://duckduckgo.com/", "Duckduckgo Homepage")
+    }
+}
+
+
 
 /** The mode by which a lookup is performed.
  *
@@ -35,19 +60,36 @@ impl Default for SearchMode {
     }
 }
 
+#[derive(Default, PartialEq, Eq)]
+pub enum SortMode {
+    ByTitle,
+    ByTitleRev,
+    ByURL,
+    ByURLRev,
+    #[default] ByDateCreation,
+    ByDateCreationRev
+}
+
+
 #[allow(dead_code)]
 pub struct Profile<'a> {
     id: usize,
-    name: String,
+    name: &'a str,
 
     t_created: NaiveDateTime,
     t_last_modified: NaiveDateTime,
 
-    pairs: HashSet<Rc<URLTitlePair<'a>>>,
+    pub pairs: Vec<Rc<URLTitlePair<'a>>>,
+    // pairs: HashSet<Rc<URLTitlePair<'a>>>,
+
+    pub curr_sort_mode: SortMode,
 
     urls: HashMap<URL<'a>, HashSet<Rc<URLTitlePair<'a>>>>, // NOTE: Multiple URLs can have the same title (given or self-designated); same for titles
     titles: HashMap<Title<'a>, HashSet<Rc<URLTitlePair<'a>>>>,
 }
+
+
+
 
 impl<'a> Profile<'a> {
     pub fn new(last_id: usize, name: &str) -> Self {
@@ -55,15 +97,36 @@ impl<'a> Profile<'a> {
 
         Self {
             id: last_id + 1,
-            name: name.to_owned(),
+            name,
 
             t_created,
             t_last_modified: t_created,
 
-            pairs: HashSet::new(),
+            pairs: Vec::new(),
+            // pair: HashSet::new(),
+
+            curr_sort_mode: SortMode::default(),
 
             urls: HashMap::new(),
             titles: HashMap::new(),
+        }
+    }
+
+    pub fn new_with_info(
+        last_id: usize,
+        name: &str,
+        t_created: NaiveDateTime,
+        pairs: Vec<Rc<URLTitlePair<'_>>>
+    ) -> Self {
+        Self {
+            id: last_id,
+            name,
+            t_created,
+            t_last_modified: todo!(),
+            pairs,
+            curr_sort_mode: SortMode::default(),
+            urls: todo!(),
+            titles: todo!(),
         }
     }
 
@@ -80,11 +143,11 @@ impl<'a> Profile<'a> {
             .or_else(|| Profile::get_title(url)?)
             .ok_or(Errors::ParseTitleError)?;
 
-        let pair = Rc::new(URLTitlePair(url, title));
+        let pair = Rc::new(URLTitlePair::new(url, title));
 
-        if !self.pairs.insert(pair.clone()) {
-            return Err(Errors::PairAlreadyExistsError);
-        }
+        // if !self.pairs.insert(pair.clone()) {
+        //     return Err(Errors::PairAlreadyExistsError);
+        // }
 
         self.urls
             .entry(url)
@@ -180,8 +243,9 @@ impl<'a> Profile<'a> {
     }
 
     fn remove_pair(&mut self, removend: &Rc<URLTitlePair>) -> Result<(), Errors> {
-        if self.urls.remove(&removend.0).is_some() && self.titles.remove(&removend.1).is_some() {
-            self.pairs.remove(removend);
+        if self.urls.remove(&removend.url).is_some() && self.titles.remove(&removend.title).is_some() {
+            // self.pairs.remove(removend);
+            self.pairs.remove(idx);
 
             Ok(())
         } else {
