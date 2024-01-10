@@ -74,10 +74,10 @@ pub enum SortMode {
 #[allow(dead_code)]
 pub struct Profile<'a> {
     id: usize,
-    name: &'a str,
+    pub name: &'a str,
 
-    t_created: NaiveDateTime,
-    t_last_modified: NaiveDateTime,
+    pub t_created: NaiveDateTime,
+    pub t_last_visited: NaiveDateTime,
 
     pub pairs: Vec<Rc<URLTitlePair<'a>>>,
     // pairs: HashSet<Rc<URLTitlePair<'a>>>,
@@ -100,7 +100,7 @@ impl<'a> Profile<'a> {
             name,
 
             t_created,
-            t_last_modified: t_created,
+            t_last_visited: t_created,
 
             pairs: Vec::new(),
             // pair: HashSet::new(),
@@ -122,7 +122,8 @@ impl<'a> Profile<'a> {
             id: last_id,
             name,
             t_created,
-            t_last_modified: todo!(),
+            // TODO:
+            t_last_visited: t_created,
             pairs,
             curr_sort_mode: SortMode::default(),
             urls: todo!(),
@@ -140,7 +141,11 @@ impl<'a> Profile<'a> {
 
     pub fn add_new(&mut self, url: &str, given_title: Option<&str>) -> Result<(), Errors> {
         let title = given_title
-            .or_else(|| Profile::get_title(url)?)
+            .or_else(|| 
+                // TODO:
+                // Profile::get_title(url)?
+                Some("Title not given")
+            )
             .ok_or(Errors::ParseTitleError)?;
 
         let pair = Rc::new(URLTitlePair::new(url, title));
@@ -155,9 +160,7 @@ impl<'a> Profile<'a> {
                 by_url.insert(pair.clone());
             })
             .or_insert({
-                let k = HashSet::new();
-                k.insert(pair.clone());
-                k
+                HashSet::from([pair.clone()])
             });
 
         self.titles
@@ -166,9 +169,7 @@ impl<'a> Profile<'a> {
                 by_title.insert(pair.clone());
             })
             .or_insert({
-                let k = HashSet::new();
-                k.insert(pair.clone());
-                k
+                HashSet::from([pair.clone()])
             });
         Ok(())
     }
@@ -176,9 +177,10 @@ impl<'a> Profile<'a> {
     /** Behavior: if fetching failed, do not change previous title */
     pub fn refresh_get_titles(&mut self) {
         self.urls.iter_mut().for_each(|(url, title)| {
-            if let Ok(new_title) = Profile::get_title(url) {
-                *title = new_title;
-            }
+            // TODO:
+            // if let Ok(new_title) = Profile::get_title(url) {
+            //     *title = new_title;
+            // }
         });
     }
 

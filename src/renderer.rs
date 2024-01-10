@@ -6,7 +6,7 @@ use crate::{Profile, URLTitlePair, Errors, write_stdout, SortMode};
 
 
 #[allow(unused_macros)]
-macro_rules! format_pair_for_display {
+macro_rules! format_pair {
     ($pair: ident) => {
         {
             let url = $pair.url;
@@ -15,7 +15,16 @@ macro_rules! format_pair_for_display {
         }
     };
 }
-
+macro_rules! format_profile {
+    ($prfl: ident) => {
+        {
+            let name = $prfl.name;
+            let len = $prfl.pairs.len();
+            let t_last = $prfl.t_last_visited;
+            format!(">> {} | {} | {}", name, len, t_last)
+        }
+    };
+}
 
 
 
@@ -38,7 +47,7 @@ const STATIC_INFO_MAINMENU: [&'static str; 11] = [
     ">> If you want a new profile, press N to enter its name",
     SEP,
 ];
-const STATIC_INFO_MAINMENU_LEN: u16 = STATIC_INFO_MAINMENU.len() as u16;
+pub const STATIC_INFO_MAINMENU_LEN: u16 = STATIC_INFO_MAINMENU.len() as u16;
 
 
 
@@ -53,13 +62,33 @@ const COLOR_BG_HILIT: Color = Color::White;
 
 
 
+pub fn render_line(stdout: &mut Stdout, line: &str, opt_fg_color: Option<Color>) -> Result<(), Errors> {
+    
+    if let Some(color) = opt_fg_color {
+        write_stdout!(
+            stdout,
+            SetForegroundColor(color)
+        )?;
+    }
+    write_stdout!(
+        stdout,
+        Print(line)
+    )?;
+    Ok(())
+}
+
+
+
 pub fn render_beginning(stdout: &mut Stdout) -> Result<(), Errors> {
     write_stdout!(
         stdout,
         MoveTo(0, 0),
+        SetForegroundColor(COLOR_FG_DECLARE),
         Print(STATIC_INFO_MAINMENU.join("\n\r")),
-        MoveTo(0, STATIC_INFO_MAINMENU_LEN + 1)
+        MoveTo(0, STATIC_INFO_MAINMENU_LEN + 1),
+        ResetColor
     )?;
+
     Ok(())
 }
 
@@ -68,6 +97,46 @@ pub fn render_beginning(stdout: &mut Stdout) -> Result<(), Errors> {
 
 
 
+
+pub fn render_list_of_profiles<'a>(
+    stdout: &mut Stdout,
+    prfls: &Vec<Profile<'a>>,
+    pos_row_last: u16,
+    pos_col: u16,
+
+    highlight_idx: usize
+) -> Result<(), Errors> {
+
+    let pos_row = pos_row_last
+        .checked_add(1)
+        .ok_or(Errors::CursorPosOverflowError)?;
+
+    write_stdout!(
+        stdout,
+        MoveTo(pos_col, pos_row)
+    )?;
+
+    for (idx, prfl) in prfls.iter().enumerate() {
+        
+        let printstr = format_profile!(prfl);
+
+        if idx == highlight_idx {
+            write_stdout!(
+                stdout,
+                SetForegroundColor(COLOR_FG_HILIT),
+                SetBackgroundColor(COLOR_BG_HILIT)
+            )?;
+        }
+
+        write_stdout!(
+            stdout,
+            Print(printstr),
+            ResetColor
+        )?;
+    }
+
+    Ok(())
+}
 
 
 
@@ -92,7 +161,7 @@ pub fn render_profile(
         )
     )?;
 
-    render_list_impl(stdout, &prfl.pairs, prfl.curr_sort_mode)
+    render_profile_impl(stdout, &prfl.pairs, prfl.curr_sort_mode)
 }
 
 
@@ -117,7 +186,7 @@ pub fn change_sort_mode(prfl: &mut Profile, new_sort_mode: SortMode) {
 
 
 
-fn render_list_impl(stdout: &mut Stdout, list: &Vec<Rc<URLTitlePair>>, sort_mode: SortMode) -> Result<(), Errors> {    
+fn render_profile_impl(stdout: &mut Stdout, list: &Vec<Rc<URLTitlePair>>, sort_mode: SortMode) -> Result<(), Errors> {    
     for pair in list.iter() {
 
         let mut fg_color = COLOR_FG_DEFAULT;
@@ -130,7 +199,7 @@ fn render_list_impl(stdout: &mut Stdout, list: &Vec<Rc<URLTitlePair>>, sort_mode
         write_stdout!(
             stdout,
             SetForegroundColor(fg_color),
-            Print(format_pair_for_display!(pair)),
+            Print(format_pair!(pair)),
             ResetColor
         )?;
     }

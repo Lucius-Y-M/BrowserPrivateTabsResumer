@@ -1,6 +1,6 @@
 use std::{fs, rc::Rc};
 
-use chrono::{NaiveDateTime, Utc};
+use chrono::{NaiveDateTime, NaiveDate};
 use itertools::Itertools;
 use toml::Value;
 
@@ -27,18 +27,20 @@ const DEFAULT_LIMIT: usize = 30;
 
 
 
-const FILE_PREFIX: &str = "ITR_PRFL";
+const FILE_PREFIX: &str = "ITR_PRFL_";
 const FILE_EXTSN: &str = ".toml";
 
 
 const TOML_GEN_HEADER: &str = "General";
 const TOML_GEN_PRFL_NAME: &str = "name";
 const TOML_GEN_PRFL_ID: &str = "id";
+const TOML_GEN_TIME_CR: &str = "time_created";
+
 
 const TOML_OBJ_HEADER: &str = "BrowserTab";
 const TOML_OBJ_URL: &str = "url";
-const TOML_GEN_TITLE: &str = "title";
-const TOML_OBJ_TIME: &str = "time_created";
+const TOML_OBJ_TITLE: &str = "title";
+const TOML_OBJ_TIME_CR: &str = "time_created";
 
 
 
@@ -70,13 +72,42 @@ fn parse_toml(toml_file_name: &str) -> Option<Profile> {
         .parse::<usize>()
         .ok()?;
 
-    let t_created: NaiveDateTime = todo!();
+
+
+    // toml format: yyyy:: mm:: dd:: hh:: mm:: ss
+    let t_created: NaiveDateTime = {
+        let mut time: Vec<u32> = gen_table
+            .get(TOML_GEN_TIME_CR)?
+            .as_str()?
+            .split("::")
+            .filter_map(|s| s.parse::<u32>().ok())
+            .collect_vec();
+        time.reverse();
+
+
+        if time.len() != 6 {
+            return None;
+        }
+
+        NaiveDate::
+            from_ymd_opt(
+                time.pop()? as i32, 
+                time.pop()?, 
+                time.pop()?
+            )?
+            .and_hms_opt(
+                time.pop()?, 
+                time.pop()?,
+                time.pop()?
+            )?
+    };
 
 
     // read browser tabs
-    let pairs = if let Some(arr) = toml::from_str::<Value>(
-            &toml_file
-        )
+    let pairs =
+        if let Some(arr) = toml::from_str::<Value>(
+                &toml_file
+            )
             .ok()?
             .get("BrowserTab")?
             .as_array()
@@ -91,7 +122,10 @@ fn parse_toml(toml_file_name: &str) -> Option<Profile> {
                 .collect_vec();
 
             Some(pairs)
-        } else {
+        }
+        
+        else
+        {
             None
         };
     
@@ -117,10 +151,10 @@ fn parse_toml(toml_file_name: &str) -> Option<Profile> {
 ///or [Err(())] if none exists
 ///(OR, rarely, if [```fs::read_dir(".")```] somehow fails).
 ///
-pub fn read_profiles<'a>() -> Result<Vec<Profile<'a>>, ()> {
+pub fn read_profiles<'a>() -> Result<Vec<Profile<'a>>, Errors> {
 
     let profiles = fs::read_dir(".")
-        .map_err(|_| ())?
+        .map_err(|_| Errors::FSReadError)?
         .filter_map(|file| {
             match file {
                 Ok(file) => {
@@ -143,6 +177,6 @@ pub fn read_profiles<'a>() -> Result<Vec<Profile<'a>>, ()> {
     if profiles.len() > 0 {
         Ok(profiles)
     } else {
-        Err(())
+        Err(Errors::NoTOMLFilesFoundError)
     }
 }
