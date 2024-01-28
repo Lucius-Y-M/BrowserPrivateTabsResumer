@@ -44,7 +44,7 @@ const TOML_OBJ_TIME_CR: &str = "time_created";
 
 
 
-const fn is_file_pattern_correct(file_name: &str) -> bool {
+fn is_file_pattern_correct(file_name: &str) -> bool {
     file_name.starts_with(FILE_PREFIX)
     & file_name.ends_with(FILE_EXTSN) 
 }
@@ -57,9 +57,11 @@ fn parse_toml(toml_file_name: &str) -> Option<Profile> {
     let toml_file = fs::read_to_string(toml_file_name).ok()?;
 
 
+    let x = toml::from_str::<Value>(&toml_file).ok()?;
+
     // init Profile
-    let gen_table = toml::from_str::<Value>(&toml_file)
-        .ok()?
+    let gen_table = 
+        x
         .get(TOML_GEN_HEADER)?
         .as_table()?;
 
@@ -130,9 +132,9 @@ fn parse_toml(toml_file_name: &str) -> Option<Profile> {
         };
     
     if pairs.is_none() {
-        Some(Profile::new(last_id, name))
+        Some(Profile::new(last_id, name.to_owned()))
     } else {
-        Some(Profile::new_with_info(last_id, name, t_created, pairs?))
+        Some(Profile::new_with_info(last_id, name.to_owned(), t_created, pairs?))
     }
 
 }
@@ -160,17 +162,17 @@ pub fn read_profiles<'a>() -> Result<Vec<Profile<'a>>, Errors> {
                 Ok(file) => {
                     let file_name = file.file_name().to_str()?;
                     match is_file_pattern_correct(file_name) {
-                        true => Some(file_name),
+                        true => {
+                            parse_toml(file_name)
+                        },
                         false => None,
                     }
                 },
                 Err(_) => None,
             }
         })
-        .fold(Vec::with_capacity(DEFAULT_LIMIT), |mut acc, next_file_name| {
-            if let Some(prfl) = parse_toml(next_file_name) {
-                acc.push(prfl);
-            };
+        .fold(Vec::with_capacity(DEFAULT_LIMIT), |mut acc, prfl| {
+            acc.push(prfl);
             acc
         });
 

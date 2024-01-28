@@ -1,3 +1,10 @@
+
+
+#![allow(unused_imports)]
+
+
+
+
 use chrono::*;
 use itertools::Itertools;
 use once_cell::sync::Lazy;
@@ -7,36 +14,42 @@ use std::{
 };
 
 use crate::Errors;
-use reqwest::{self, Client};
-use scraper::{html::Html, Selector};
+// use reqwest::{self, Client};
+// use scraper::{html::Html, Selector};
 
-static TITLE_SELECTOR: Lazy<Result<Selector, Errors>> =
-    Lazy::new(|| Selector::parse("title").map_err(|_| Errors::SelectorGenerateError));
+// static TITLE_SELECTOR: Lazy<Result<Selector, Errors>> =
+//     Lazy::new(|| Selector::parse("title").map_err(|_| Errors::SelectorGenerateError));
 
-type URL<'a> = &'a str;
-type Title<'a> = &'a str;
+
+
+
+// type URL<'a> = &'a str;
+// type Title<'a> = &'a str;
+type URL = String;
+type Title = String;
+
 
 #[derive(Debug, PartialEq, Eq, Hash)]
-pub struct URLTitlePair<'a> {
-    pub url: URL<'a>,
-    pub title: Title<'a>,
+pub struct URLTitlePair {
+    pub url: URL,
+    pub title: Title,
     
     pub is_highlighted: bool,
     pub t_created: NaiveDateTime,
 }
 
-impl<'a> URLTitlePair<'a> {
-    pub fn new(url: URL<'a>, title: Title<'a>) -> Self {
+impl URLTitlePair {
+    pub fn new(url: &str, title: &str) -> Self {
         Self {
-            url,
-            title,
+            url: String::from(url),
+            title: String::from(title),
             is_highlighted: false,
             t_created: Utc::now().naive_utc()
         }
     }
 }
 
-impl<'a> Default for URLTitlePair<'a> {
+impl Default for URLTitlePair {
     fn default() -> Self {
         Self::new("https://duckduckgo.com/", "Duckduckgo Homepage")
     }
@@ -60,7 +73,7 @@ impl Default for SearchMode {
     }
 }
 
-#[derive(Default, PartialEq, Eq)]
+#[derive(Default, PartialEq, Eq, Debug, Clone, Copy)]
 pub enum SortMode {
     ByTitle,
     ByTitleRev,
@@ -74,25 +87,38 @@ pub enum SortMode {
 #[allow(dead_code)]
 pub struct Profile<'a> {
     id: usize,
-    pub name: &'a str,
+    pub name: String,
 
     pub t_created: NaiveDateTime,
     pub t_last_visited: NaiveDateTime,
 
-    pub pairs: Vec<Rc<URLTitlePair<'a>>>,
+    pub pairs: Vec<Rc<URLTitlePair>>,
     // pairs: HashSet<Rc<URLTitlePair<'a>>>,
 
     pub curr_sort_mode: SortMode,
 
-    urls: HashMap<URL<'a>, HashSet<Rc<URLTitlePair<'a>>>>, // NOTE: Multiple URLs can have the same title (given or self-designated); same for titles
-    titles: HashMap<Title<'a>, HashSet<Rc<URLTitlePair<'a>>>>,
+
+    /* NOTE:
+        While TITLES must be unique,
+        URLS can duplicate;
+
+        e.g.
+            ("https://google.ca", "My Google Page 1"),
+            ("https://google.ca", "My Google Page 2"),
+            ...
+
+        This means one URL can have multi matching pairs,
+        but every title can only match one pair.
+     */
+    urls: HashMap<&'a String, HashSet<Rc<URLTitlePair>>>,
+    titles: HashMap<&'a String, Rc<URLTitlePair>>, 
 }
 
 
 
 
 impl<'a> Profile<'a> {
-    pub fn new(last_id: usize, name: &str) -> Self {
+    pub fn new(last_id: usize, name: String) -> Self {
         let t_created = Utc::now().naive_utc();
 
         Self {
@@ -114,10 +140,29 @@ impl<'a> Profile<'a> {
 
     pub fn new_with_info(
         last_id: usize,
-        name: &str,
+        name: String,
         t_created: NaiveDateTime,
-        pairs: Vec<Rc<URLTitlePair<'_>>>
+        pairs: Vec<Rc<URLTitlePair>>
     ) -> Self {
+
+        let titles = pairs
+            .iter()
+            .fold(HashMap::with_capacity(pairs.len()), |mut acc, pair| {
+
+                acc.insert(&pair.title, pair.clone());
+
+                acc
+            });
+        let urls = pairs
+            .iter()
+            .fold(HashMap::with_capacity(pairs.len()), |mut acc, pair| {
+                acc.entry(&pair.url)
+                    .and_modify(|v: &mut HashSet<Rc<URLTitlePair>>| { v.insert(pair.clone()); })
+                    .or_insert(HashSet::<Rc<URLTitlePair>>::from([pair.clone()]));
+
+                acc
+            });
+
         Self {
             id: last_id,
             name,
@@ -126,8 +171,9 @@ impl<'a> Profile<'a> {
             t_last_visited: t_created,
             pairs,
             curr_sort_mode: SortMode::default(),
-            urls: todo!(),
-            titles: todo!(),
+
+            urls,
+            titles,
         }
     }
 
@@ -150,21 +196,16 @@ impl<'a> Profile<'a> {
 
         let pair = Rc::new(URLTitlePair::new(url, title));
 
-        // if !self.pairs.insert(pair.clone()) {
-        //     return Err(Errors::PairAlreadyExistsError);
-        // }
+        if self.pairs.contains(&pair) {
+            return Err(Errors::PairAlreadyExistsError);
+        }
+
+        self.pairs.push(pair);
+
+        self.titles.insert(&pair.url, pair);
 
         self.urls
-            .entry(url)
-            .and_modify(|by_url| {
-                by_url.insert(pair.clone());
-            })
-            .or_insert({
-                HashSet::from([pair.clone()])
-            });
-
-        self.titles
-            .entry(title)
+            .entry(&pair.title)
             .and_modify(|by_title| {
                 by_title.insert(pair.clone());
             })
@@ -211,71 +252,97 @@ impl<'a> Profile<'a> {
         searchand: &str,
         is_blurry: bool,
     ) -> Result<Vec<&Rc<URLTitlePair>>, Errors> {
-        let res = if is_blurry {
-            self.urls
-                .iter()
-                .filter_map(|(&url, pairs)| {
-                    if !url.contains(searchand) {
-                        None
-                    } else {
-                        Some(pairs.into_iter().collect_vec())
-                    }
-                })
-                .flatten()
-                .collect_vec()
-        } else {
-            self.urls
-                .get(searchand)
-                .ok_or(Errors::NothingFoundError)?
-                .into_iter()
-                .collect_vec()
+        self.search_impl(true, searchand, is_blurry)
+    }
+
+    fn search_by_title(
+        &self,
+        searchand: &str,
+        is_blurry: bool,
+    ) -> Result<Vec<&Rc<URLTitlePair>>, Errors> {
+        self.search_impl(false, searchand, is_blurry)
+    }
+
+
+    fn search_impl(
+        &self,
+        is_by_url: bool, /* if false, by title */
+        searchand: &str,
+        is_blurry: bool,
+    ) -> Result<Vec<&Rc<URLTitlePair>>, Errors> {
+
+        let res = match is_by_url {
+            true => {
+                match is_blurry {
+                    true => {
+                        self.urls
+                        .iter()
+                        .filter_map(|(&s, pairs)| {
+                            if !s.contains(searchand) {
+                                None
+                            } else {
+                                Some(pairs.into_iter().collect_vec())
+                            }
+                        })
+                        .flatten()
+                        .collect_vec()
+                    },
+                    false => {
+                        self.urls
+                        .get(searchand)
+                        .ok_or(Errors::NothingFoundError)?
+                        .into_iter()
+                        .collect_vec()
+                    },
+                }
+            },
+            false => {
+
+            },
         };
 
         match res.is_empty() {
             true => Ok(res),
             false => Err(Errors::NothingFoundError),
         }
-    }
-    fn search_by_title(
-        &self,
-        searchand: &str,
-        is_blurry: bool,
-    ) -> Result<Vec<&Rc<URLTitlePair>>, Errors> {
-        todo!()
+
     }
 
-    fn remove_pair(&mut self, removend: &Rc<URLTitlePair>) -> Result<(), Errors> {
-        if self.urls.remove(&removend.url).is_some() && self.titles.remove(&removend.title).is_some() {
-            // self.pairs.remove(removend);
-            self.pairs.remove(idx);
 
-            Ok(())
+    fn remove_pair(&mut self, removend: &Rc<URLTitlePair>, idx: usize) -> Result<(), Errors> {
+        if let Some(pair) = self.pairs.get(idx) {
+            if pair == removend {
+                self.pairs.remove(idx);
+                Ok(())
+            } else {
+                Err(Errors::LookupDeletionFailedError)
+            }
         } else {
             Err(Errors::LookupDeletionFailedError)
         }
     }
 
-    async fn get_title(url: &str) -> Result<String, Errors> {
-        let response = Client::new()
-            .get(url)
-            .send()
-            .await
-            .map_err(|_| Errors::RequestGetError)?;
+    // async fn get_title(url: &str) -> Result<String, Errors> {
+    //     let response = Client::new()
+    //         .get(url)
+    //         .send()
+    //         .await
+    //         .map_err(|_| Errors::RequestGetError)?;
 
-        let body = response.text().await.map_err(|_| Errors::ParseTextError)?;
-        let doc = Html::parse_document(&body);
+    //     let body = response.text().await.map_err(|_| Errors::ParseTextError)?;
+    //     let doc = Html::parse_document(&body);
 
-        // NOTE: by this point, the main program should have confirmed that TITLE_SELECTOR is
-        // generated successfully
+    //     // NOTE: by this point, the main program should have confirmed that TITLE_SELECTOR is
+    //     // generated successfully
 
-        let title = doc
-            .select(TITLE_SELECTOR.as_ref().map_err(|e| *e)?)
-            .next()
-            .ok_or(Errors::ParseTitleError)?
-            .text()
-            .collect_vec()
-            .join("");
+    //     let title = doc
+    //         .select(TITLE_SELECTOR.as_ref().map_err(|e| *e)?)
+    //         .next()
+    //         .ok_or(Errors::ParseTitleError)?
+    //         .text()
+    //         .collect_vec()
+    //         .join("");
 
-        Ok(title)
-    }
+    //     Ok(title)
+    // }
 }

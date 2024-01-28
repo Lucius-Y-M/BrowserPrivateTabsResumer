@@ -9,8 +9,8 @@ use crate::{Profile, URLTitlePair, Errors, write_stdout, SortMode};
 macro_rules! format_pair {
     ($pair: ident) => {
         {
-            let url = $pair.url;
-            let title = $pair.title;
+            let url = &$pair.url;
+            let title = &$pair.title;
             String::from_iter([">> Title: ", title, " | URL: ", url].into_iter())
         }
     };
@@ -18,7 +18,7 @@ macro_rules! format_pair {
 macro_rules! format_profile {
     ($prfl: ident) => {
         {
-            let name = $prfl.name;
+            let name = &$prfl.name;
             let len = $prfl.pairs.len();
             let t_last = $prfl.t_last_visited;
             format!(">> {} | {} | {}", name, len, t_last)
@@ -142,7 +142,7 @@ pub fn render_list_of_profiles<'a>(
 
 pub fn render_profile(
     stdout: &mut Stdout,
-    prfl: &Profile,
+    prfl: &mut Profile,
     pos_row_last: u16, /* the last row BEFORE we start rendering */
     pos_col: u16
 ) -> Result<(), Errors>
@@ -161,24 +161,24 @@ pub fn render_profile(
         )
     )?;
 
-    render_profile_impl(stdout, &prfl.pairs, prfl.curr_sort_mode)
+    render_profile_impl(stdout, &mut prfl.pairs, prfl.curr_sort_mode)
 }
 
 
-pub fn change_sort_mode(prfl: &mut Profile, new_sort_mode: SortMode) {
+pub fn change_sort_mode(list: &mut Vec<Rc<URLTitlePair>>, new_sort_mode: SortMode) {
 
-    if prfl.curr_sort_mode != new_sort_mode {
-        prfl.curr_sort_mode = new_sort_mode;
+    // if prfl.curr_sort_mode != new_sort_mode {
+    //     prfl.curr_sort_mode = new_sort_mode;
 
         match new_sort_mode {
-            SortMode::ByTitle => prfl.pairs.sort_unstable_by(|a, b| a.title.cmp(b.title)),
-            SortMode::ByTitleRev => prfl.pairs.sort_unstable_by(|a, b| b.title.cmp(a.title)),
-            SortMode::ByURL => prfl.pairs.sort_unstable_by(|a, b| a.url.cmp(b.url)),
-            SortMode::ByURLRev => prfl.pairs.sort_unstable_by(|a, b| b.url.cmp(a.url)),
-            SortMode::ByDateCreation => prfl.pairs.sort_unstable_by(|a, b| a.t_created.cmp(&b.t_created)),
-            SortMode::ByDateCreationRev => prfl.pairs.sort_unstable_by(|a, b| b.t_created.cmp(&a.t_created)),
+            SortMode::ByTitle => list.sort_unstable_by(|a, b| a.title.cmp(&b.title)),
+            SortMode::ByTitleRev => list.sort_unstable_by(|a, b| b.title.cmp(&a.title)),
+            SortMode::ByURL => list.sort_unstable_by(|a, b| a.url.cmp(&b.url)),
+            SortMode::ByURLRev => list.sort_unstable_by(|a, b| b.url.cmp(&a.url)),
+            SortMode::ByDateCreation => list.sort_unstable_by(|a, b| a.t_created.cmp(&b.t_created)),
+            SortMode::ByDateCreationRev => list.sort_unstable_by(|a, b| b.t_created.cmp(&a.t_created)),
         }
-    }
+    // }
 }
 
 
@@ -186,7 +186,11 @@ pub fn change_sort_mode(prfl: &mut Profile, new_sort_mode: SortMode) {
 
 
 
-fn render_profile_impl(stdout: &mut Stdout, list: &Vec<Rc<URLTitlePair>>, sort_mode: SortMode) -> Result<(), Errors> {    
+fn render_profile_impl(stdout: &mut Stdout, list: &mut Vec<Rc<URLTitlePair>>, sort_mode: SortMode) -> Result<(), Errors> {    
+
+    change_sort_mode(list, sort_mode);
+    
+
     for pair in list.iter() {
 
         let mut fg_color = COLOR_FG_DEFAULT;
