@@ -1,6 +1,11 @@
 #[derive(Debug, Clone, Copy)]
 pub enum Errors {
 
+
+    MutexLockFailedError,
+
+    EventReadFailedError,
+
     // TOML file IO
     FSReadError,
     NoTOMLFilesFoundError,

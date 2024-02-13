@@ -1,6 +1,6 @@
-use std::{rc::Rc, io::Stdout};
+use std::io::Stdout;
 use crossterm::{style::{Print, Color, SetBackgroundColor, SetForegroundColor, ResetColor}, cursor::MoveTo};
-use crate::{Profile, URLTitlePair, Errors, write_stdout, SortMode};
+use crate::{Profile, Errors, write_stdout};
 
 
 
@@ -9,18 +9,25 @@ use crate::{Profile, URLTitlePair, Errors, write_stdout, SortMode};
 macro_rules! format_pair {
     ($pair: ident) => {
         {
-            let url = &$pair.url;
-            let title = &$pair.title;
-            String::from_iter([">> Title: ", title, " | URL: ", url].into_iter())
+            let url = $pair.url
+                // .get_mut()
+                // .unwrap_or(&mut String::from("### FETCH FAILED"))
+                .clone();
+            let title = $pair.title
+                // .get_mut()
+                // .unwrap_or(&mut String::from("### FETCH FAILED"))
+                .clone();
+
+            String::from_iter([">> Title: ", &title, " | URL: ", &url])
         }
     };
 }
 macro_rules! format_profile {
     ($prfl: ident) => {
         {
-            let name = &$prfl.name;
-            let len = $prfl.pairs.len();
-            let t_last = $prfl.t_last_visited;
+            let name = &$prfl.get_name();
+            let len = $prfl.get_pairs().len();
+            let t_last = $prfl.get_time_last_visited();
             format!(">> {} | {} | {}", name, len, t_last)
         }
     };
@@ -53,11 +60,11 @@ pub const STATIC_INFO_MAINMENU_LEN: u16 = STATIC_INFO_MAINMENU.len() as u16;
 
 
 
-const COLOR_FG_DECLARE: Color = Color::Green;
-const COLOR_FG_DEFAULT: Color = Color::White;
-const COLOR_FG_HILIT: Color = Color::Cyan;
+pub const COLOR_FG_DECLARE: Color = Color::Green;
+pub const COLOR_FG_DEFAULT: Color = Color::White;
+pub const COLOR_FG_HILIT: Color = Color::Cyan;
 
-const COLOR_BG_HILIT: Color = Color::White;
+pub const COLOR_BG_HILIT: Color = Color::White;
 
 
 
@@ -98,9 +105,9 @@ pub fn render_beginning(stdout: &mut Stdout) -> Result<(), Errors> {
 
 
 
-pub fn render_list_of_profiles<'a>(
+pub fn render_list_of_profiles(
     stdout: &mut Stdout,
-    prfls: &Vec<Profile<'a>>,
+    prfls: &Vec<Profile>,
     pos_row_last: u16,
     pos_col: u16,
 
@@ -161,41 +168,21 @@ pub fn render_profile(
         )
     )?;
 
-    render_profile_impl(stdout, &mut prfl.pairs, prfl.curr_sort_mode)
-}
-
-
-pub fn change_sort_mode(list: &mut Vec<Rc<URLTitlePair>>, new_sort_mode: SortMode) {
-
-    // if prfl.curr_sort_mode != new_sort_mode {
-    //     prfl.curr_sort_mode = new_sort_mode;
-
-        match new_sort_mode {
-            SortMode::ByTitle => list.sort_unstable_by(|a, b| a.title.cmp(&b.title)),
-            SortMode::ByTitleRev => list.sort_unstable_by(|a, b| b.title.cmp(&a.title)),
-            SortMode::ByURL => list.sort_unstable_by(|a, b| a.url.cmp(&b.url)),
-            SortMode::ByURLRev => list.sort_unstable_by(|a, b| b.url.cmp(&a.url)),
-            SortMode::ByDateCreation => list.sort_unstable_by(|a, b| a.t_created.cmp(&b.t_created)),
-            SortMode::ByDateCreationRev => list.sort_unstable_by(|a, b| b.t_created.cmp(&a.t_created)),
-        }
-    // }
+    render_profile_impl(stdout, prfl)
 }
 
 
 
 
 
-
-fn render_profile_impl(stdout: &mut Stdout, list: &mut Vec<Rc<URLTitlePair>>, sort_mode: SortMode) -> Result<(), Errors> {    
-
-    change_sort_mode(list, sort_mode);
+fn render_profile_impl(stdout: &mut Stdout, prfl: &mut Profile) -> Result<(), Errors> {
     
 
-    for pair in list.iter() {
+    for pair in prfl.get_pairs().iter() {
 
         let mut fg_color = COLOR_FG_DEFAULT;
 
-        if pair.is_highlighted {
+        if pair.clone().is_highlighted() {
             fg_color = COLOR_FG_HILIT;
             write_stdout!(stdout, SetBackgroundColor(COLOR_BG_HILIT))?;
         }

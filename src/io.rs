@@ -1,4 +1,4 @@
-use std::{fs, rc::Rc};
+use std::fs;
 
 use chrono::{NaiveDateTime, NaiveDate};
 use itertools::Itertools;
@@ -119,7 +119,7 @@ fn parse_toml(toml_file_name: &str) -> Option<Profile> {
                 .filter_map(|v| {
                     let url = v.get("url")?.as_str()?;
                     let title = v.get("title")?.as_str()?;
-                    Some(Rc::new(URLTitlePair::new(url, title)))
+                    Some(URLTitlePair::new(url, title))
                 })
                 .collect_vec();
 
@@ -131,12 +131,12 @@ fn parse_toml(toml_file_name: &str) -> Option<Profile> {
             None
         };
     
-    if pairs.is_none() {
-        Some(Profile::new(last_id, name.to_owned()))
-    } else {
-        Some(Profile::new_with_info(last_id, name.to_owned(), t_created, pairs?))
-    }
-
+    Some(
+        Profile::builder()
+            .add_name(name)
+            .add_many_title_url_pairs(pairs.unwrap_or_default())
+            .build()
+        )
 }
 
 
@@ -153,14 +153,15 @@ fn parse_toml(toml_file_name: &str) -> Option<Profile> {
 ///or [Err(())] if none exists
 ///(OR, rarely, if [```fs::read_dir(".")```] somehow fails).
 ///
-pub fn read_profiles<'a>() -> Result<Vec<Profile<'a>>, Errors> {
+pub fn read_profiles() -> Result<Vec<Profile>, Errors> {
 
     let profiles = fs::read_dir(".")
         .map_err(|_| Errors::FSReadError)?
         .filter_map(|file| {
             match file {
                 Ok(file) => {
-                    let file_name = file.file_name().to_str()?;
+                    let fname = file.file_name();
+                    let file_name = fname.to_str()?;
                     match is_file_pattern_correct(file_name) {
                         true => {
                             parse_toml(file_name)
