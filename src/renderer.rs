@@ -1,5 +1,5 @@
 use std::io::Stdout;
-use crossterm::{style::{Print, Color, SetBackgroundColor, SetForegroundColor, ResetColor}, cursor::MoveTo};
+use crossterm::{cursor::MoveTo, style::{Print, Color, SetBackgroundColor, SetForegroundColor, ResetColor}, terminal::{Clear, ClearType}};
 use crate::{Profile, Errors, write_stdout};
 
 
@@ -89,6 +89,9 @@ pub fn render_line(stdout: &mut Stdout, line: &str, opt_fg_color: Option<Color>)
 pub fn render_beginning(stdout: &mut Stdout) -> Result<(), Errors> {
     write_stdout!(
         stdout,
+
+        Clear(ClearType::All), // this is necessary
+
         MoveTo(0, 0),
         SetForegroundColor(COLOR_FG_DECLARE),
         Print(STATIC_INFO_MAINMENU.join("\n\r")),

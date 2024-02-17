@@ -10,7 +10,7 @@ use std::sync::{
 };
 
 
-use chrono;
+use chrono::{self, NaiveDateTime};
 use once_cell::sync::Lazy;
 
 
@@ -59,6 +59,15 @@ impl URLTitlePair {
 
             t_created: chrono::Utc::now().naive_utc(),
 
+            is_highlighted: false,
+        }
+    }
+
+    pub fn from_save(url: String, title: String, t_created: NaiveDateTime) -> Self {
+        Self {
+            url,
+            title,
+            t_created,
             is_highlighted: false,
         }
     }

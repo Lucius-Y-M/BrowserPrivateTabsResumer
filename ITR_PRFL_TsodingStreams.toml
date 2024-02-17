@@ -1,0 +1,22 @@
+[General]
+
+name = "Tsoding Streams"
+id = 123
+time_created = "2023::10::24::13::52::16"
+
+
+
+[[BrowserTab]]
+url = "https://www.google.ca/"
+title = "Google Canada"
+t_created = "2023::10::24::13::52::16"
+
+[[BrowserTab]]
+url = "https://minzu.rep.kp/"
+title = "Minzu Choson"
+t_created = "2023::10::24::13::52::16"
+
+[[BrowserTab]]
+url = "https://nytimes.com"
+title = "New York Times"
+t_created = "2023::10::24::13::52::16"

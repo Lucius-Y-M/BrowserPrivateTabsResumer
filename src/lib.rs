@@ -8,6 +8,7 @@ pub use errors::*;
 pub use renderer::*;
 pub use profile::*;
 
+use serde::{Serialize, Deserialize};
 pub use crossterm::execute;
 
 
