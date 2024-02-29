@@ -8,8 +8,27 @@ pub use errors::*;
 pub use renderer::*;
 pub use profile::*;
 
-use serde::{Serialize, Deserialize};
+use serde::Deserialize;
 pub use crossterm::execute;
+
+
+
+
+#[macro_export]
+#[cfg(feature = "debug_print")]
+macro_rules! debug_println {
+    ($($arg:tt)*) => {
+        #[cfg(debug_assertions)]
+        println!($($arg)*);
+    }
+}
+#[macro_export]
+#[cfg(not(feature = "debug_print"))]
+macro_rules! debug_println {
+    ($($arg:tt)*) => {}
+}
+
+
 
 
 #[macro_export]

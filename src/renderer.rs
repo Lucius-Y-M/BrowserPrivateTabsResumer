@@ -1,6 +1,18 @@
 use std::io::Stdout;
 use crossterm::{cursor::MoveTo, style::{Print, Color, SetBackgroundColor, SetForegroundColor, ResetColor}, terminal::{Clear, ClearType}};
-use crate::{Profile, Errors, write_stdout};
+use crate::{Profile, Errors, write_stdout, debug_println};
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -18,7 +30,7 @@ macro_rules! format_pair {
                 // .unwrap_or(&mut String::from("### FETCH FAILED"))
                 .clone();
 
-            String::from_iter([">> Title: ", &title, " | URL: ", &url])
+            String::from_iter([">> Title: ", &title, " | URL: ", &url, "\n"])
         }
     };
 }
@@ -28,7 +40,7 @@ macro_rules! format_profile {
             let name = &$prfl.get_name();
             let len = $prfl.get_pairs().len();
             let t_last = $prfl.get_time_last_visited();
-            format!(">> {} | {} | {}", name, len, t_last)
+            format!(">> {} | {} | {}\n", name, len, t_last)
         }
     };
 }
@@ -104,9 +116,59 @@ pub fn render_beginning(stdout: &mut Stdout) -> Result<(), Errors> {
 
 
 
+pub fn render_one_profile(
+    stdout: &mut Stdout,
+    prfl: &Profile,
+    pos_row_last: u16,
+    pos_col: u16,
+    highlight_idx: Option<usize>
+) -> Result<(), Errors> {
+
+    let pos_row = pos_row_last
+        .checked_add(1)
+        .ok_or(Errors::CursorPosOverflowError)?;
+
+    write_stdout!(
+        stdout,
+        MoveTo(pos_row, pos_col)
+    )?;
+
+    if let None = highlight_idx {
+        render_line(stdout, "No URL-Title pairs available in this profile. Press A to ADD a new one.", Some(COLOR_FG_HILIT))?;
+        return Ok(());
+    }
+    let idx = highlight_idx.unwrap();
+
+    let pairs: Vec<_> = prfl
+        .get_pairs()
+        .into_iter()
+        .map(|pair| format_pair!(pair))
+        .collect();
 
 
+    write_stdout!(
+        stdout,
+        Clear(ClearType::All)
+    )?;
+    for (pair_idx, pair) in pairs.into_iter().enumerate() {
 
+            if idx == pair_idx {
+                write_stdout!(
+                    stdout,
+                    Print(pair)
+                )?;
+            }
+            else {
+                write_stdout!(
+                    stdout,
+                    Print(pair)
+                )?;
+            }
+    }
+
+
+    Ok(())
+}
 
 pub fn render_list_of_profiles(
     stdout: &mut Stdout,
@@ -121,13 +183,19 @@ pub fn render_list_of_profiles(
         .checked_add(1)
         .ok_or(Errors::CursorPosOverflowError)?;
 
+    debug_println!(">>RLOP: pos row read;");
+
+
     write_stdout!(
         stdout,
         MoveTo(pos_col, pos_row)
     )?;
 
+    debug_println!(">>RLOP: start (idx, prfl) in prfls");
     for (idx, prfl) in prfls.iter().enumerate() {
-        
+
+        debug_println!(">>RLOP-Loop : ({}, {:?})", idx, prfl);
+
         let printstr = format_profile!(prfl);
 
         if idx == highlight_idx {
@@ -136,6 +204,7 @@ pub fn render_list_of_profiles(
                 SetForegroundColor(COLOR_FG_HILIT),
                 SetBackgroundColor(COLOR_BG_HILIT)
             )?;
+
         }
 
         write_stdout!(
@@ -144,6 +213,8 @@ pub fn render_list_of_profiles(
             ResetColor
         )?;
     }
+
+    debug_println!(">>RLOP: finish");
 
     Ok(())
 }

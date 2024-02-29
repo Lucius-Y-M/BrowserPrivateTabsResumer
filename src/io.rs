@@ -3,7 +3,7 @@ use std::fs;
 use chrono::{NaiveDateTime, NaiveDate};
 use itertools::Itertools;
 
-use crate::{Profile, Errors, URLTitlePair, Deserialize};
+use crate::{debug_println, Deserialize, Errors, Profile, URLTitlePair};
 
 ///
 ///
@@ -109,29 +109,29 @@ fn parse_toml(toml_file_name: &str) -> Option<Profile> {
     
 
     let toml_file = fs::read_to_string(toml_file_name).ok()?;
-    println!("TOML FILE Opened.");
+    debug_println!("TOML FILE Opened.");
 
     let config: Config = toml::from_str(&toml_file).unwrap();
-    println!("TOML FILE into str.");
+    debug_println!("TOML FILE into str.");
 
     // init Profile
     let general = config.General;
-    println!("TOML FILE into table.");
+    debug_println!("TOML FILE into table.");
 
     let name = general.name;
-    println!("TOML FILE name got: {}.", name);
+    debug_println!("TOML FILE name got: {}.", name);
     let last_id = general
         .id;
         // .get(TOML_GEN_PRFL_ID)?
         // .as_str()?
         // .parse::<usize>()
         // .ok()?;
-    println!("TOML FILE id got: {}.", last_id);
+    debug_println!("TOML FILE id got: {}.", last_id);
 
 
     // toml format: yyyy:: mm:: dd:: hh:: mm:: ss
     let t_created: NaiveDateTime = parse_into_naivedatetime(general.time_created, TIME_SEPARATOR)?;
-    println!("TOML FILE t created parsed: {}.", t_created);
+    debug_println!("TOML FILE t created parsed: {}.", t_created);
 
 
     // read browser tabs
@@ -188,7 +188,7 @@ pub fn read_profiles() -> Result<Vec<Profile>, Errors> {
             match file {
                 Ok(file) => {
                     
-                    println!("FILE READ: {:?}", file);
+                    debug_println!("FILE READ: {:?}", file);
 
                     let fname = file.file_name();
                     let file_name = fname.to_str()?;
@@ -200,7 +200,7 @@ pub fn read_profiles() -> Result<Vec<Profile>, Errors> {
                     }
                 },
                 Err(_) => {
-                    println!("FILE FAILED TO READ");
+                    debug_println!("FILE FAILED TO READ");
                     None
                 },
             }

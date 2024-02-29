@@ -17,9 +17,9 @@ static MOVEMENTS: Lazy<[Event; 2]> = Lazy::new(|| {
 
 
 fn main() -> Result<(), Errors> {
-    // main_impl()
+    main_impl()?;
 
-    test();
+    // test();
     Ok(())
 }
 
@@ -37,14 +37,22 @@ fn test() {
 }
 
 
+
+enum WhatToRender<'a> {
+    ListProfiles,
+    Profile(&'a Profile),
+
+    BrowserTab,
+}
+
 fn main_impl() -> Result<(), Errors> {
     let mut stdout = stdout();
 
     /* clear everything */
-    // write_stdout!(
-    //     stdout,
-    //     Clear(ClearType::Purge)
-    // )?;
+    write_stdout!(
+        stdout,
+        Clear(ClearType::Purge)
+    )?;
     
 
 
@@ -53,59 +61,151 @@ fn main_impl() -> Result<(), Errors> {
 
 
     let prfls = profiles.unwrap_or_default();
-    if prfls.is_empty() {
-        render_line(
-            &mut stdout,
-            " == You currently do not have any profiles, or the reading failed for some reason.",
-            Some(COLOR_FG_DECLARE)
-        )?;
-    } else {
-        render_list_of_profiles(&mut stdout, &prfls, STATIC_INFO_MAINMENU_LEN, 0, 0)?;
-    }
+
+    // if prfls.is_empty() {
+    //     render_line(
+    //         &mut stdout,
+    //         " == You currently do not have any profiles, or the reading failed for some reason.",
+    //         Some(COLOR_FG_DECLARE)
+    //     )?;
+    // } else {
+    //     render_list_of_profiles(&mut stdout, &prfls, STATIC_INFO_MAINMENU_LEN, 0, 0)?;
+    // }
 
 
     /* event loop */
+
+    let mut highlight_idx: Option<usize> = None;
+
+    let mut curr_prfl_idx: Option<usize> = None;
+
+    let mut profile_count = 0usize;
+    let mut render_what = WhatToRender::ListProfiles;
     loop {
+
         let event = event::read().map_err(|_| Errors::EventReadFailedError)?;
-        let mut is_changed = false;
 
         // we are currently in the MAIN MENU (choose / add / delete profiles)
-        // render_beginning(&mut stdout)?;
+        match render_what {
+            WhatToRender::ListProfiles => {
+                render_beginning(&mut stdout)?;
 
-        if prfls.is_empty() {
-            // render_line(
-            //     &mut stdout,
-            //     " == You currently do not have any profiles, or the reading failed for some reason.",
-            //     Some(COLOR_FG_DECLARE)
-            // )?;
-        } else {
-            // render_list_of_profiles(&mut stdout, &prfls, STATIC_INFO_MAINMENU_LEN, 0, 0)?;
+                if prfls.is_empty() {
+                    render_line(
+                        &mut stdout,
+                        " == You currently do not have any profiles, or the reading failed for some reason.",
+                        Some(COLOR_FG_DECLARE)
+                    )?;
+                } else {
+                    if highlight_idx.is_none() { highlight_idx = Some(0usize); }
+                    render_list_of_profiles(&mut stdout, &prfls, STATIC_INFO_MAINMENU_LEN, 0, highlight_idx.clone().unwrap())?;
+                    profile_count = prfls.len();
+                }
+        
+                match event {
+                    /* ESC */
+                    _ if event == Event::Key(KeyCode::Esc.into()) => {
+                        write_stdout!(
+                            stdout,
+                            Clear(ClearType::All),
+            
+                            MoveTo(0, 0),
+                            ResetColor
+                        )?;
+                        break;
+                    }
+                    
+                    
+                    /* UP AND DOWN */
+                    _ if event == Event::Key(KeyCode::Up.into()) => {
+                        if let Some(ref mut idx) = highlight_idx {
+                            *idx = match idx.checked_sub(1) {
+                                Some(idx) => idx,
+                                None => profile_count - 1,
+                            };
+        
+                        }
+                    }
+                    _ if event == Event::Key(KeyCode::Down.into()) => {
+                        if let Some(ref mut idx) = highlight_idx {
+                            match *idx + 1 < profile_count {
+                                true => {
+                                    *idx += 1;
+                                },
+                                false => {
+                                    *idx = 0;
+                                },
+                            }
+        
+                        }
+                    }
+        
+                    /* SELECTING CURR PROFILE */
+                    _ if event == Event::Key(KeyCode::Enter.into()) => {
+                        if let Some(ref idx) = highlight_idx {
+                            if let Some(prfl) = prfls.get(*idx) {
+                                render_what = WhatToRender::Profile(prfl);
+                                highlight_idx = match prfl.get_pairs().len() > 0 {
+                                    true => Some(0),
+                                    false => None,
+                                };
+                            }
+                        }
+                    }
+        
+        
+                    /* EVERYTHING ELSE: === DO NOTHING === */
+                    _ => {       
+                    }
+                }
+            },
+            WhatToRender::Profile(prfl) => {
+                render_one_profile(&mut stdout, prfl, STATIC_INFO_MAINMENU_LEN, 0, highlight_idx)?;
+
+                match event {
+                    /* ESC -> go back to previous level */
+                    _ if event == Event::Key(KeyCode::Esc.into()) => {
+                        render_what = WhatToRender::ListProfiles;
+                        highlight_idx = curr_prfl_idx;
+                    }
+                    
+                    
+                    /* UP AND DOWN */
+                    _ if event == Event::Key(KeyCode::Up.into()) => {
+                        if let Some(ref mut idx) = highlight_idx {
+                            *idx = match idx.checked_sub(1) {
+                                Some(idx) => idx,
+                                None => profile_count - 1,
+                            };
+        
+                        }
+                    }
+                    _ if event == Event::Key(KeyCode::Down.into()) => {
+                        if let Some(ref mut idx) = highlight_idx {
+                            match *idx + 1 < profile_count {
+                                true => {
+                                    *idx += 1;
+                                },
+                                false => {
+                                    *idx = 0;
+                                },
+                            }
+        
+                        }
+                    }
+
+                    _ => {}
+                }
+
+                
+            },
+            WhatToRender::BrowserTab => {
+
+            },
         }
-
-
-        if event == Event::Key(KeyCode::Esc.into()) {
-            write_stdout!(
-                stdout,
-                Clear(ClearType::All),
-
-                MoveTo(0, 0),
-                ResetColor
-            )?;
-
-            break;
-        }
-
-        if MOVEMENTS.contains(&event) {
-            is_changed = true;
-        }
-
-        // if let Event::Key()
-
-        if is_changed {
-            // rerender
-
-            is_changed = false;
-        }
+        
+        
+        
     }
     Ok(())
 }
